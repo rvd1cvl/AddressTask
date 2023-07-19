@@ -1,12 +1,15 @@
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.File;
+import java.io.StringReader;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.*;
 
 public class AddressParser {
 
@@ -34,7 +37,7 @@ public class AddressParser {
         }
     }
 
-    // Метод для решения задачи № 1
+    // Метод для решения задачи #1
     public static void getAddressDescriptionOnDate(String date, String objectIds, String pathToAddressFile) {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
         Date targetDate;
@@ -84,6 +87,92 @@ public class AddressParser {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // Метод для решения задачи #2
+
+    public static void parseAndPrintAddresses(String addressObjectsFilePath, String admHierarchyFilePath) {
+        try {
+            // Разбор XML-данных из файлов
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            Document addressObjectsDoc = dbFactory.newDocumentBuilder().parse(new File(addressObjectsFilePath));
+            addressObjectsDoc.getDocumentElement().normalize();
+
+            Document admHierarchyDoc = dbFactory.newDocumentBuilder().parse(new File(admHierarchyFilePath));
+            admHierarchyDoc.getDocumentElement().normalize();
+
+            // Получение списка актуальных проездов
+            NodeList addressObjectsList = addressObjectsDoc.getElementsByTagName("OBJECT");
+            NodeList admHierarchyList = admHierarchyDoc.getElementsByTagName("ITEM");
+
+            // Создание отображения parentChildMap, где ключ - OBJECTID, значение - PARENTOBJID,
+            // для хранения связей родительских и дочерних адресов
+            Map<String, String> parentChildMap = new HashMap<>();
+            for (int i = 0; i < admHierarchyList.getLength(); i++) {
+                Element admHierarchyElement = (Element) admHierarchyList.item(i);
+                String objectId = admHierarchyElement.getAttribute("OBJECTID");
+                String parentObjectId = admHierarchyElement.getAttribute("PARENTOBJID");
+                parentChildMap.put(objectId, parentObjectId);
+            }
+
+            // Список для хранения адресов проездов
+            List<String> addresses = new ArrayList<>();
+
+            // Поиск проездов и построение полных адресов
+            for (int i = 0; i < addressObjectsList.getLength(); i++) {
+                Element addressObjectElement = (Element) addressObjectsList.item(i);
+                String typeNameAttr = addressObjectElement.getAttribute("TYPENAME");
+                String name = addressObjectElement.getAttribute("NAME");
+                boolean isActual = "1".equals(addressObjectElement.getAttribute("ISACTUAL"));
+
+                if (isActual && typeNameAttr.equals("проезд")) {
+                    // Строим полный адрес проезда
+                    String addressChain = buildAddressChain(addressObjectElement, parentChildMap, addressObjectsList);
+                    addresses.add(addressChain);
+                }
+            }
+
+            // Выводим полные адреса проездов в консоль
+            for (String address : addresses) {
+                System.out.println(address);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Рекурсивно строим полный адрес проезда, включая родительские адреса
+    private static String buildAddressChain(Element addressObject, Map<String, String> parentChildMap, NodeList addressObjectsList) {
+        String name = addressObject.getAttribute("NAME");
+        String typeName = addressObject.getAttribute("TYPENAME");
+        String objectId = addressObject.getAttribute("OBJECTID");
+
+        String parentId = parentChildMap.get(objectId);
+        Element parentNode = findParentNode(parentId, parentChildMap, addressObjectsList);
+
+        if (parentNode != null) {
+            // Если у объекта есть родитель, строим цепочку родительских адресов
+            String parentChain = buildAddressChain(parentNode, parentChildMap, addressObjectsList);
+            return parentChain + ", " + name + " " + typeName;
+        } else {
+            // Возвращаем полный адрес проезда без родительских элементов
+            return name + " " + typeName;
+        }
+    }
+
+    // Метод для поиска родительского элемента по OBJECTID в списке addressObjectsList
+    private static Element findParentNode(String parentId, Map<String, String> parentChildMap, NodeList addressObjectsList) {
+        for (int i = 0; i < addressObjectsList.getLength(); i++) {
+            Element addressObjectElement = (Element) addressObjectsList.item(i);
+            String objectId = addressObjectElement.getAttribute("OBJECTID");
+
+            if (objectId.equals(parentId)) {
+                // Найден родительский элемент с заданным OBJECTID
+                return addressObjectElement;
+            }
+        }
+        // Родительский элемент не найден
+        return null;
     }
 }
 

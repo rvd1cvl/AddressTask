@@ -5,5 +5,6 @@ public class FirstTask {
         String pathToAddressFile = "C:\\Users\\mzilc\\IdeaProjects\\AddressTask\\src\\main\\resources\\AS_ADDR_OBJ.XML";
 
         AddressParser.getAddressDescriptionOnDate(targetDate, objectIds, pathToAddressFile);
+
     }
 }
